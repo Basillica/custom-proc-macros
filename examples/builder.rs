@@ -1,5 +1,3 @@
-extern crate lib1;
-extern crate lib2;
 extern crate custom_macros;
 
 use custom_macros::Builder;
