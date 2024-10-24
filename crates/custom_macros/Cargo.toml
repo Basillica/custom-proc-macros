@@ -1,0 +1,14 @@
+[package]
+name = "custom_macros"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+syn = { version = "2.0", features = ["full"] }       # For parsing Rust code into an AST
+quote = "1.0"      # For generating Rust code
+proc-macro2 = "1.0" # Utilities for working with proc macros
+
+[lib]
+name = "custom_macros"
+path = "src/lib.rs"
+proc-macro = true

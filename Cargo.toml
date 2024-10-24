@@ -1,0 +1,31 @@
+[package]
+name = "rust-macros"
+version = "0.1.0"
+edition = "2021"
+resolver = "2"
+
+[dependencies]
+lib1 = { path = "crates/lib1" }
+lib2 = { path = "crates/lib2" }
+custom_macros = { path = "crates/custom_macros" }
+
+[workspace]
+members = [
+    "crates/lib1",
+    "crates/lib2",
+    "crates/custom_macros",
+]
+
+
+[[example]]
+name = "builder"
+crate-type = ["staticlib"]
+path = "examples/builder.rs"    # The source file of the target.
+test = true            # Is tested by default.
+doctest = true         # Documentation examples are tested by default.
+bench = true           # Is benchmarked by default.
+doc = true             # Is documented by default.
+proc-macro = false     # Set to `true` for a proc-macro library.
+harness = true         # Use libtest harness.
+edition = "2015"       # The edition of the target.
+required-features = [] # Features required to build this target (N/A for lib).
