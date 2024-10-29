@@ -1,8 +1,8 @@
 extern crate custom_macros;
 
-use custom_macros::Builder;
+use custom_macros::BuiderPattern;
 
-#[derive(Builder)]
+#[derive(BuiderPattern)]
 pub struct User {
     #[allow(dead_code)]
     username: String,
@@ -18,8 +18,7 @@ mod tests {
     use super::*;
 
     #[test]
-    pub fn test_buiulder() {
-        ////////////////77
+    pub fn test_builder() {
         // Create a User using the builder pattern
         let user = User::builder()
             .username("alice@example.com".into())

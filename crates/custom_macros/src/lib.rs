@@ -1,14 +1,12 @@
 extern crate proc_macro;
 use proc_macro::TokenStream;
-use syn::{parse_macro_input, Data, DeriveInput, Fields, Meta, Lit, Ident, Token};
+use syn::{parse_macro_input, Data, DeriveInput, Fields, Ident};
 use quote::{ToTokens, quote};
-use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
-use syn::parse::{Parse, ParseStream};
 
 
-#[proc_macro_derive(Factory, attributes(factory))]
-pub fn derive_factory(input: TokenStream) -> TokenStream {
+#[proc_macro_derive(FactoryPattern, attributes(factory))]
+pub fn derive_factory_pattern(input: TokenStream) -> TokenStream {
     // Parse the input tokens into a syntax tree
     let input = parse_macro_input!(input as DeriveInput);
 
@@ -82,8 +80,8 @@ pub fn derive_factory(input: TokenStream) -> TokenStream {
 }
 
 
-#[proc_macro_derive(Builder)]
-pub fn derive_builder(input: TokenStream) -> TokenStream {
+#[proc_macro_derive(BuiderPattern)]
+pub fn derive_builder_pattern(input: TokenStream) -> TokenStream {
     // Parse the input tokens into a syntax tree
     let input = parse_macro_input!(input as DeriveInput);
 
@@ -168,7 +166,7 @@ pub fn derive_builder(input: TokenStream) -> TokenStream {
 }
 
 
-#[proc_macro_derive(GettersSetters)]
+#[proc_macro_derive(DeriveGetterSetter)]
 pub fn derive_getters_setters(input: TokenStream) -> TokenStream {
     // Parse the input tokens into a syntax tree
     let input = parse_macro_input!(input as DeriveInput);
@@ -188,10 +186,11 @@ pub fn derive_getters_setters(input: TokenStream) -> TokenStream {
                 let field_name = field.ident.as_ref().unwrap();
                 let field_ty = &field.ty;
 
+                let getter_name = syn::Ident::new(&format!("get_{}", field_name), field_name.span());
                 // Generate a getter method for each field
                 let getter_fn = quote! {
                     impl #struct_name {
-                        pub fn #field_name(&self) -> &#field_ty {
+                        pub fn #getter_name(&self) -> &#field_ty {
                             &self.#field_name
                         }
                     }
@@ -243,8 +242,8 @@ pub fn derive_getters_setters(input: TokenStream) -> TokenStream {
 }
 
 
-#[proc_macro_derive(QueryBuilder2)]
-pub fn query_builder_derive_v1(input: TokenStream) -> TokenStream {
+#[proc_macro_derive(SqlQueryDerive2)]
+pub fn sql_query_buider2(input: TokenStream) -> TokenStream {
     // Parse the input tokens into a syntax tree
     let input = parse_macro_input!(input as DeriveInput);
 
@@ -296,182 +295,8 @@ pub fn query_builder_derive_v1(input: TokenStream) -> TokenStream {
 }
 
 
-// Custom struct to represent parsed custom_model attributes
-struct CustomModel {
-    name: Ident,
-    fields: Vec<Ident>,
-    extra_derives: Vec<Ident>,
-}
-
-
-// Implementing the Parse trait to parse the custom_model attribute input
-impl Parse for CustomModel {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
-        let mut name = None;
-        let mut fields = Vec::new();
-        let mut extra_derives = Vec::new();
-
-        // Parse the input for named items like name, fields, and extra_derives
-        while !input.is_empty() {
-            let lookahead = input.lookahead1();
-
-            if lookahead.peek(Ident) {
-                let key: Ident = input.parse()?;
-                input.parse::<Token![=]>()?;
-                if key == "name" {
-                    let lit: Lit = input.parse()?;
-                    if let Lit::Str(lit_str) = lit {
-                        name = Some(Ident::new(&lit_str.value(), lit_str.span()));
-                    }
-                } else if key == "fields" {
-                    let content;
-                    syn::bracketed!(content in input);
-                    fields = Punctuated::<Ident, Token![,]>::parse_terminated(&content)?
-                        .into_iter()
-                        .collect();
-                } else if key == "extra_derives" {
-                    let content;
-                    syn::bracketed!(content in input);
-                    extra_derives = Punctuated::<Ident, Token![,]>::parse_terminated(&content)?
-                        .into_iter()
-                        .collect();
-                }
-            } else {
-                return Err(syn::Error::new(input.span(), "unexpected input"));
-            }
-
-            // Optionally accept commas
-            if input.peek(Token![,]) {
-                input.parse::<Token![,]>()?;
-            }
-        }
-
-        Ok(CustomModel {
-            name: name.expect("model must have a name"),
-            fields,
-            extra_derives,
-        })
-    }
-}
-
-
-#[proc_macro_derive(QueryBuilder, attributes(custom_model))]
-pub fn query_builder_derive(input: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(input as DeriveInput);
-
-    // Get the struct's name
-    let name = input.ident;
-
-    // Extract and process custom_model attributes
-    let mut models = vec![];
-    for attr in input.attrs.iter().filter(|attr| attr.path().is_ident("custom_model")) {
-        if let Ok(meta) = attr.parse_args() {
-            if let Meta::List(meta_list) = meta {
-                for token in meta_list.tokens {
-                    // Parse the custom model attribute
-                    let parsed: Result<CustomModel, _> = syn::parse2(token.to_token_stream());
-                    if let Ok(custom_model) = parsed {
-                        models.push(custom_model);
-                    }
-                }
-            }
-        }
-    }
-    
-
-    // Generate SQL query builders for each custom model
-    let model_impls = models.into_iter().map(|model| {
-        let model_name = model.name;
-        let model_fields = model.fields;
-        let extra_derives = model.extra_derives;
-
-        // Check if the struct has named fields
-        let fields = match input.data {
-            Data::Struct(ref data_struct) => match data_struct.fields {
-                Fields::Named(ref fields_named) => &fields_named.named,
-                _ => panic!("QueryBuilder can only be derived for structs with named fields"),
-            },
-            _ => panic!("QueryBuilder can only be derived for structs"),
-        };
-
-        // Generate SQL field checks for each field in the struct
-        let query_fields = fields.iter().map(|field| {
-            let field_name = &field.ident;
-            let field_name_str = field_name.as_ref().unwrap().to_string();
-
-            // For each field, check if it is Some() and then include it in the query
-            quote! {
-                if let Some(ref value) = self.#field_name {
-                    query_parts.push(format!("{} = '{}'", #field_name_str, value));
-                }
-            }
-        });
-
-        quote! {
-            impl #name {
-                pub fn build_query(&self) -> String {
-                    let mut query_parts = Vec::new();
-
-                    #(#query_fields)*
-
-                    if query_parts.is_empty() {
-                        return format!("SELECT * FROM {}", stringify!(#model_name));
-                    }
-
-                    let where_clause = query_parts.join(" AND ");
-                    format!("SELECT * FROM {} WHERE {}", stringify!(#model_name), where_clause)
-                }
-            }
-
-            #[derive(#(#extra_derives),*)]
-            pub struct #name {
-                #(#model_fields: Option<String>),*
-            }
-        }
-    });
-
-    // Combine the generated implementations
-    let expanded = quote! {
-        #(#model_impls)*
-    };
-
-    TokenStream::from(expanded)
-}
-
-
-struct MyParser {
-    v: Vec<String>,
-}
-
-
-impl Parse for MyParser {
-    #[inline]
-    fn parse(input: ParseStream) -> Result<Self, syn::Error> {
-        let mut v: Vec<String> = vec![];
-
-        loop {
-            if input.is_empty() {
-                break;
-            }
-
-            v.push(input.parse::<syn::LitStr>()?.value());
-
-            if input.is_empty() {
-                break;
-            }
-
-            input.parse::<Token!(,)>()?;
-        }
-
-        Ok(MyParser {
-            v,
-        })
-    }
-}
-
-
-#[proc_macro_derive(QueryBuilder3, attributes(table_name, query_params, use_attrs_with_query))]
-pub fn query_builder_derive_v3(input: TokenStream) -> TokenStream {
+#[proc_macro_derive(SqlQueryDerive, attributes(table_name, use_attrs_with_query))]
+pub fn sql_query_buider(input: TokenStream) -> TokenStream {
     // Parse the input tokens into a syntax tree
     let input: DeriveInput = parse_macro_input!(input as DeriveInput);
     
@@ -482,42 +307,25 @@ pub fn query_builder_derive_v3(input: TokenStream) -> TokenStream {
     // Default values for table name and extra derives
     let mut table_name = "".to_string(); // Default table name
     let mut use_attrs_with_query = false;
-    let mut params: Vec<String> = Vec::new();
-
 
     for attr in &input.attrs {
         if let Some(attr_meta_name) = attr.path().get_ident() {
-
-            // match derives
-            if attr_meta_name == "query_params" {
-                let attr_meta = &attr.meta;
-                match attr_meta {
-                    Meta::List(list) => {
-                        let parsed: MyParser = list.parse_args()
-                        .map_err(|_| {
-                            // returning a specific syn::Error to teach the right usage of your macro 
-                            syn::Error::new(
-                                list.span(),
-                                // this indoc macro is just convenience and requires the indoc crate but can be done without it
-                                format! {r#"
-                                    The `query_params` attribute expects string literals to be comma separated
-    
-                                    = help: use `#[query_params("Debug", "Clone")]`
-                                "#}
-                            )
-                        }).unwrap();
-                        
-                        params.extend_from_slice(&parsed.v);
-                    },
-                    _ => panic!("Incorrect format for using the `hello` attribute."),
-                }
-            }
-
             // match table name
             if attr_meta_name == "table_name" {
                 let exp: syn::Expr = attr
                     .parse_args()
-                    .unwrap();
+                    .map_err(|_| {
+                        // returning a specific syn::Error to teach the right usage of your macro 
+                        syn::Error::new(
+                            attr.span(),
+                            // this indoc macro is just convenience and requires the indoc crate but can be done without it
+                            format! {r#"
+                                The `table_name` attribute expects string literals to be comma separated
+
+                                = help: use `#[table_name("users")]`
+                            "#}
+                        )
+                    }).unwrap();
                 table_name = exp.into_token_stream().to_string();
             }
 

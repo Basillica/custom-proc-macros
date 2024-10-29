@@ -1,104 +1,101 @@
 extern crate lib1;
-extern crate lib2;
 extern crate custom_macros;
 
-use custom_macros::{QueryBuilder3, GettersSetters, Builder, Factory};
+use lib1::lib1_add;
+use custom_macros::{
+    SqlQueryDerive, DeriveGetterSetter,
+    BuiderPattern, FactoryPattern,
+};
 
-#[derive(QueryBuilder3, Debug)]
-#[use_attrs_with_query]
-#[table_name(sample2)]
-struct User2 {
-    id: Option<i32>,
-    name: Option<String>,
-    email: Option<String>,
-    age: Option<i32>,
+// for the sql query macro
+#[derive(Debug, SqlQueryDerive)]
+#[table_name(anthony)] // attribute macro
+struct Student {
+    first_name: Option<String>,
+    last_name: Option<String>,
+    id: Option<i64>,
 }
 
-pub struct User {
-    username: String,
+// for the setter-getter macro
+#[derive(Debug, DeriveGetterSetter)]
+struct Person{
     first_name: String,
     last_name: String,
+    address: String,
+    age: i64,
 }
 
-impl core::fmt::Debug for User {
-    fn fmt(&self, f: &mut core::fmt::Formatter) -> ::core::fmt::Result {
-        f.debug_struct(
-            "User"
-        )
-        .field("username", &self.username)
-        .field("first_name", &self.first_name)
-        .field("last_name", &self.last_name)
-        .finish()
-    }
+// for the builder patter macro
+#[derive(Debug, BuiderPattern)]
+struct User {
+    first_name: String,
+    last_name: String,
+    address: String,
+    age: i64,
 }
 
-
-#[derive(GettersSetters)]
-pub struct User3 {
+// for the factory pattern
+#[derive(Debug, FactoryPattern)]
+struct Product {
+    #[factory]
     id: u32,
-    username: String,
+    name: String,
+    price: i64,
 }
 
-#[derive(Builder)]
-pub struct User4 {
-    id: u32,
-    username: String,
-    email: String,
+macro_rules! add {
+    ($a:expr, $b:expr) => {
+        {
+            $a+$b
+        }
+    };
 }
 
 fn main() {
-    // Initialize the struct using the `new` function
-    let mut user = User3::new(1, String::from("Alice"));
+    println!("Hello, world!");
+    println!("the result of 3 + 5 = {}", add!(3, 5));
+    println!("the result from lib1: {}", lib1_add(3, 5));
 
-    // Use the getter methods
-    println!("ID: {}", user.id());
-    println!("Username: {}", user.username());
+    // sql builder example
+    let student = Student{
+        id: None,
+        first_name: Some(String::from("tonie")),
+        last_name: None,
+    };
 
-    // Use the setter methods
-    user.set_id(2);
-    user.set_username(String::from("Bob"));
+    let query = student.build_query();
+    println!("our query: {query}");
 
-    println!("Updated ID: {}", user.id());
-    println!("Updated Username: {}", user.username());
+    // setter-getter example
+    let person = Person{
+        first_name: "tonie".to_string(),
+        last_name: "etienne".to_string(),
+        address: "germany".to_string(),
+        age: 34,
+    };
+    println!("first_name: {}", person.get_first_name());
 
-    ////////////////77
-    // Create a User using the builder pattern
-    let user = User4::builder()
-        .id(1)
-        .username("Alice".into())
-        .email("alice@example.com".into())
+    // builder patter example
+    let user00 = User{
+        first_name: "tonie".to_string(),
+        last_name: "etienne".to_string(),
+        address: "germany".to_string(),
+        age: 34,
+    };
+
+    let user11 = User::builder()
+        .first_name("tonie".into())
+        .last_name("etienne".into())
+        .address("germany".into())
+        .age(34)
         .build()
         .unwrap();
 
-    println!("User: {}, {}, {}", user.id, user.username, user.email);
+    assert_eq!(user00.first_name, user11.first_name);
+    println!("user00: {:?}", user00);
+    println!("user11: {:?}", user11);
 
-    ////////////////////////////
-    #[derive(Factory)]
-    pub struct Product {
-        product_id: u32,
-        #[factory]
-        name: String,
-        price: f64,
-        #[factory]
-        age: i32,
-    }
-    let product = Product::new_product(1001, 34.56);
-    println!("Product ID: {}, Name: {}, Price: ${}, age: {}", product.product_id, product.name, product.price, product.age);
-
-
-    /////////////////////////
-    let user = User2 {
-        id: Some(1),
-        name: None,
-        email: Some("user@example.com".to_string()),
-        age: None,
-    };
-
-    println!("the frigging user: {:?}", user);
-    
-    let query = user.build_query();
-    println!("the frigging query {}", query);
-    println!("Main function called");
-    lib1::shitty();
-    lib2::stuffy();
+    // factory pattern example
+    let product = Product::new_product(String::from("value"), 23);
+    println!("id : {}, name: {} and price: {}", product.id, product.name, product.price);
 }
